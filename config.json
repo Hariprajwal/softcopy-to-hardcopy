@@ -1,0 +1,13 @@
+{
+  "student_name": "Hariprajwal",
+  "default_subject": "Assignment",
+  "font_path": "C:/Windows/Fonts/segoesc.ttf",
+  "fallback_font_path": "C:/Windows/Fonts/Inkfree.ttf",
+  "font_size": 44,
+  "ink_color_rgb": [22, 58, 128],
+  "ollama_url": "http://localhost:11434",
+  "ollama_vision_model": "llama3.2-vision",
+  "ollama_text_cleanup_model": "qwen2.5:7b",
+  "enable_ai_cleanup": false,
+  "paper_type": "plain_a4"
+}
