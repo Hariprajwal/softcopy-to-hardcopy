@@ -11,6 +11,14 @@ __pycache__/
 *.svg
 *.gcode
 
+# Pipeline directories - ignore all input, finished, and output contents except .gitkeep
+pipeline/input/*
+!pipeline/input/.gitkeep
+pipeline/finished_input/*
+!pipeline/finished_input/.gitkeep
+pipeline/output/*
+!pipeline/output/.gitkeep
+
 # Virtual environments
 venv/
 env/
