@@ -5,7 +5,7 @@
 [![CNC Plotter](https://img.shields.io/badge/Hardware-CoreXY%20%2F%20CNC%20Shield-orange?style=for-the-badge&logo=robotics&logoColor=white)](#hardware-architecture--wiring)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](LICENSE)
 [![Status](https://img.shields.io/badge/Build-Passing-success?style=for-the-badge)]()
-[![SEO](https://img.shields.io/badge/SEO-Optimized-blueviolet?style=for-the-badge)]()
+
 
 > **An end-to-end cyber-physical software and robotics pipeline that converts digital documents (PDF, DOCX, TXT) into natural, personalized handwriting—available as high-resolution printable PDFs or machine-optimized G-code for physical pen plotters.**
 
