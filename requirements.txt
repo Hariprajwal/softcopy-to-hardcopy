@@ -1,0 +1,19 @@
+# Core Computer Vision & Image Processing
+Pillow>=10.0.0
+numpy>=1.24.0
+scipy>=1.10.0
+matplotlib>=3.7.0
+
+# Document Parsing & OCR
+PyMuPDF>=1.23.0
+pytesseract>=0.3.10
+
+# Geometry, Vector Toolpaths & CNC Plotter
+shapely>=2.0.0
+svgpathtools>=1.6.0
+pyserial>=3.5
+
+# Optional Web Backend (FastAPI / Uvicorn)
+fastapi>=0.100.0
+uvicorn>=0.22.0
+python-multipart>=0.0.6

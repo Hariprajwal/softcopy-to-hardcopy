@@ -1,0 +1,28 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Output artifacts & sample outputs (as requested)
+*.png
+*.jpg
+*.jpeg
+*.pdf
+*.svg
+*.gcode
+
+# Virtual environments
+venv/
+env/
+ENV/
+.venv/
+
+# IDE & OS files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Logs & temp files
+*.log
+scratch/
