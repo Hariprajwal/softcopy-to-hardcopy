@@ -127,6 +127,7 @@ Standard attempts to generate handwritten documents suffer from two major techni
 
 | File | Purpose |
 | :--- | :--- |
+| **[`auto_pipeline.py`](auto_pipeline.py)** | Automated folder watcher & batch pipeline. Ingests files from `pipeline/input/`, generates A4 cursive PDFs in `pipeline/output/`, and moves originals to `pipeline/finished_input/`. |
 | **[`core_engine.py`](core_engine.py)** | Vector trajectory synthesis, parametric Bezier glyphs, TSP 2-Opt toolpath optimizer, and GRBL G-code compiler. |
 | **[`font_to_single_stroke_plotter.py`](font_to_single_stroke_plotter.py)** | Morphological Zhang-Suen centerline skeletonizer to convert downloaded TTF fonts into 1-line paths for plotters. |
 | **[`generate_a4_cursive_pdf.py`](generate_a4_cursive_pdf.py)** | Generates standard 300 DPI A4 plain-sheet PDFs using Segoe Script fluid connected cursive notes. |
@@ -212,7 +213,20 @@ pip install -r requirements.txt
 
 ### Command-Line Execution
 
-#### 1. Generate Standard A4 Cursive Assignment (Plain Sheet PDF)
+#### 1. Automated Folder Watcher Pipeline (Recommended)
+Simply drop your documents (`.pdf`, `.docx`, `.txt`, `.png`, `.jpg`) into the `pipeline/input/` folder:
+
+* **Batch Mode:** Process all current files in the inbox immediately:
+  ```bash
+  python auto_pipeline.py
+  ```
+* **Continuous Watcher Mode:** Keep running in the background and automatically convert files the second they are dropped into the folder:
+  ```bash
+  python auto_pipeline.py --watch
+  ```
+* *The original document is cleanly moved to `pipeline/finished_input/`, and the converted handwritten PDF and preview image appear in `pipeline/output/`.*
+
+#### 2. Generate Standard A4 Cursive Assignment Directly
 ```bash
 python generate_a4_cursive_pdf.py
 ```
