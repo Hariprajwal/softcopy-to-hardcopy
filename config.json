@@ -6,8 +6,10 @@
   "font_size": 44,
   "ink_color_rgb": [22, 58, 128],
   "ollama_url": "http://localhost:11434",
-  "ollama_vision_model": "llama3.2-vision",
-  "ollama_text_cleanup_model": "qwen2.5:7b",
-  "enable_ai_cleanup": false,
+  "ocr_engine": "rapidocr",
+  "enable_ai_enhancement": true,
+  "ollama_text_model": "llama3.1:latest",
+  "ai_mode": "solve_and_clean",
+  "ollama_timeout": 180,
   "paper_type": "plain_a4"
 }
