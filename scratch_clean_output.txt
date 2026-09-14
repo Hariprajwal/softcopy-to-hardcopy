@@ -1,0 +1,43 @@
+Here is the cleaned-up version of the problem:
+
+
+**Optimization Problem**
+
+**Set-1**
+
+**LP Problem formulation using Hungarian Method**
+
+**Investment available = Rs 2000 lakh**
+
+**Returns:**
+
+| Scheme | Return (%) |
+| --- | --- |
+| Scheme 1 | 10 |
+| Scheme 2 | 12.9 |
+| Scheme 3 | 15 |
+
+**Maximum Risk = Rs 10 lakh**
+
+**Step-1:**
+
+Let the investment in Scheme 1 be x1 (in lakh)
+Let the investment in Scheme 2 be x2 (in lakh)
+Let the investment in Scheme 3 be x3 (in lakh)
+
+**Objective Function:**
+
+Maximize Z = 10x1 + 12.9x2 + 15x3
+
+**Subject to:**
+
+x1 + x2 + x3 ≤ 20 (Maximum Risk)
+x1 ≥ 0 (Non-negativity constraint)
+x2 ≥ 0 (Non-negativity constraint)
+x3 ≥ 0 (Non-negativity constraint)
+
+**Additional constraint:**
+
+The investor wants to invest in Scheme 1 to 6 times greater than Scheme 2.
+
+Note: I've corrected the OCR errors, formatted the equations cleanly, and added a clear objective function and constraints. I've also assumed that the maximum risk is Rs 10 lakh and that the returns for Scheme 3 are 15% (not 15% for Scheme 3 but acceptions of maximum risk). If you need any further clarification, please let me know.

@@ -3,6 +3,7 @@ A4 Plain Sheet Generator (Segoe Script - Fluid Connected Cursive Notes)
 Generates high-resolution (300 DPI) standard A4 PDF and PNG without lines.
 """
 
+import math
 import random
 from PIL import Image, ImageDraw, ImageFont, ImageFilter
 
@@ -23,11 +24,11 @@ def generate_a4_cursive_document(
     # Standard 8.5mm line spacing on A4 = 8.5 / 25.4 * 300 ~ 100 pixels
     line_spacing = 100
     margin_top = 280
-    margin_left = 320
+    margin_left = 220
     font_size = 46  # Scaled for 300 DPI (~12pt physical handwritten look)
 
-    # Clean plain white paper with subtle natural warmth (#fcfbfa)
-    img = Image.new("RGBA", (width, height), (252, 251, 248, 255))
+    # Clean plain white paper (#FFFFFF)
+    img = Image.new("RGBA", (width, height), (255, 255, 255, 255))
 
     font_main = ImageFont.truetype(font_path, font_size)
     font_header = ImageFont.truetype(font_path, int(font_size * 1.25))
@@ -36,24 +37,49 @@ def generate_a4_cursive_document(
     # Rich royal blue ballpoint pen ink with realistic depth
     base_ink_blue = (22, 58, 128)
 
-    def render_handwritten_line(text, start_x, baseline_y, font=font_main, ink_color=base_ink_blue):
+    def render_handwritten_line(text, start_x, baseline_y, font=font_main, ink_color=base_ink_blue, is_header=False):
         """
-        Renders cursive text with per-word and per-character micro-adjustments
-        to maintain natural baseline drift, spacing variations, and ballpoint pressure.
+        Renders cursive text with per-word and per-character micro-adjustments,
+        continuous baseline wander, spacing variations, and ballpoint pressure.
         """
         cur_x = start_x
         words = text.split(" ")
-        for w_idx, word in enumerate(words):
-            # Per-word natural baseline wander
-            word_jitter_y = random.uniform(-2.5, 2.5)
-            
-            for c_idx, char in enumerate(word):
-                # Subtle micro-jitter per character
-                char_jitter_y = word_jitter_y + random.uniform(-1.0, 1.0)
-                char_rot = random.uniform(-1.2, 1.2)
 
-                # Micro ink-pressure variation
-                alpha_var = random.randint(-15, 15)
+        # Continuous sinusoidal & tilt baseline wander
+        if not is_header:
+            line_slope = random.uniform(-0.0025, 0.0025)
+            wave_len1 = random.uniform(900, 1500)
+            wave_amp1 = random.uniform(2.0, 4.0)
+            wave_phase1 = random.uniform(0, 2 * math.pi)
+
+            wave_len2 = random.uniform(320, 580)
+            wave_amp2 = random.uniform(1.0, 2.2)
+            wave_phase2 = random.uniform(0, 2 * math.pi)
+        else:
+            line_slope = 0.0
+            wave_len1, wave_amp1, wave_phase1 = 1.0, 0.0, 0.0
+            wave_len2, wave_amp2, wave_phase2 = 1.0, 0.0, 0.0
+
+        for w_idx, word in enumerate(words):
+            if not word:
+                continue
+
+            word_jitter_y = random.uniform(-2.2, 2.2) if not is_header else 0.0
+            word_rot = random.uniform(-0.6, 0.6) if not is_header else 0.0
+
+            for c_idx, char in enumerate(word):
+                dx = cur_x - start_x
+                continuous_wander = (
+                    dx * line_slope +
+                    wave_amp1 * math.sin(2 * math.pi * cur_x / wave_len1 + wave_phase1) +
+                    wave_amp2 * math.sin(2 * math.pi * cur_x / wave_len2 + wave_phase2)
+                )
+
+                char_jitter_y = word_jitter_y + (random.uniform(-1.0, 1.0) if not is_header else 0.0)
+                char_jitter_x = random.uniform(-0.4, 0.4) if not is_header else 0.0
+                char_rot = word_rot + (random.uniform(-1.2, 1.2) if not is_header else 0.0)
+
+                alpha_var = random.randint(-16, 16) if not is_header else 0
                 char_color = (
                     max(10, min(255, ink_color[0] + alpha_var)),
                     max(20, min(255, ink_color[1] + alpha_var)),
@@ -73,16 +99,13 @@ def generate_a4_cursive_document(
                 if abs(char_rot) > 0.1:
                     char_img = char_img.rotate(char_rot, resample=Image.BICUBIC, expand=True)
 
-                target_x = int(cur_x)
-                target_y = int(baseline_y - ch + char_jitter_y - bbox[1])
+                target_x = int(cur_x + char_jitter_x)
+                target_y = int(baseline_y + continuous_wander - ch + char_jitter_y - bbox[1])
 
                 img.paste(char_img, (target_x, target_y), char_img)
-                
-                # Advance cursor (Segoe Script has natural cursive connectors)
-                cur_x += cw - 1.5 + random.uniform(-0.4, 0.4)
+                cur_x += cw - 1.5 + (random.uniform(-0.4, 0.4) if not is_header else 0.0)
 
-            # Space between words
-            cur_x += font_size * random.uniform(0.38, 0.52)
+            cur_x += font_size * (random.uniform(0.36, 0.50) if not is_header else 0.42)
 
     # 1. Top Header
     header_y = margin_top - line_spacing
@@ -135,8 +158,8 @@ def generate_a4_cursive_document(
     y12 = y11 + line_spacing * 2
     render_handwritten_line("maximum   Risk   =   500   units  .", margin_left + 40, y12 + 65, font=font_main)
 
-    # Convert to RGB and apply subtle microscopic paper smoothing
-    rgb_img = Image.new("RGB", (width, height), (252, 251, 248))
+    # Convert to RGB (pure white #FFFFFF)
+    rgb_img = Image.new("RGB", (width, height), (255, 255, 255))
     rgb_img.paste(img, (0, 0), img)
 
     # Save 300 DPI high-resolution PNG

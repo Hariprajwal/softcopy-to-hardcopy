@@ -11,5 +11,12 @@
   "ollama_text_model": "llama3.1:latest",
   "ai_mode": "solve_and_clean",
   "ollama_timeout": 180,
-  "paper_type": "plain_a4"
+  "paper_type": "plain_a4",
+  "paper_color_rgb": [255, 255, 255],
+  "human_misalignment": true,
+  "margin_left": 220,
+  "margin_right": 200,
+  "margin_top": 220,
+  "margin_bottom": 220,
+  "line_spacing": 92
 }

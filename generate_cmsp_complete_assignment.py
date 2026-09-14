@@ -5,6 +5,7 @@ Font: Segoe Script (Fluid Connected Cursive Notes)
 Format: Standard ISO A4 (300 DPI, Plain Sheet)
 """
 
+import math
 import random
 from PIL import Image, ImageDraw, ImageFont
 
@@ -21,7 +22,8 @@ def generate_cmsp_assignment(
 
     line_spacing = 92
     margin_top = 220
-    margin_left = 320
+    margin_left = 220
+    margin_right = 200
     font_size = 44
 
     font_title = ImageFont.truetype(font_path, int(font_size * 1.35))
@@ -31,16 +33,45 @@ def generate_cmsp_assignment(
 
     base_ink_blue = (22, 58, 128)
 
-    def render_handwritten_line(canvas, text, start_x, baseline_y, font=font_main, ink_color=base_ink_blue):
+    def render_handwritten_line(canvas, text, start_x, baseline_y, font=font_main, ink_color=base_ink_blue, is_header=False):
         cur_x = start_x
         words = text.split(" ")
-        for word in words:
-            word_jitter_y = random.uniform(-2.5, 2.5)
-            for char in word:
-                char_jitter_y = word_jitter_y + random.uniform(-1.0, 1.0)
-                char_rot = random.uniform(-1.2, 1.2)
 
-                alpha_var = random.randint(-15, 15)
+        # Continuous sinusoidal & slope baseline wander
+        if not is_header:
+            line_slope = random.uniform(-0.0025, 0.0025)
+            wave_len1 = random.uniform(900, 1500)
+            wave_amp1 = random.uniform(2.0, 4.0)
+            wave_phase1 = random.uniform(0, 2 * math.pi)
+
+            wave_len2 = random.uniform(320, 580)
+            wave_amp2 = random.uniform(1.0, 2.2)
+            wave_phase2 = random.uniform(0, 2 * math.pi)
+        else:
+            line_slope = 0.0
+            wave_len1, wave_amp1, wave_phase1 = 1.0, 0.0, 0.0
+            wave_len2, wave_amp2, wave_phase2 = 1.0, 0.0, 0.0
+
+        for word in words:
+            if not word:
+                continue
+
+            word_jitter_y = random.uniform(-2.2, 2.2) if not is_header else 0.0
+            word_rot = random.uniform(-0.6, 0.6) if not is_header else 0.0
+
+            for char in word:
+                dx = cur_x - start_x
+                continuous_wander = (
+                    dx * line_slope +
+                    wave_amp1 * math.sin(2 * math.pi * cur_x / wave_len1 + wave_phase1) +
+                    wave_amp2 * math.sin(2 * math.pi * cur_x / wave_len2 + wave_phase2)
+                )
+
+                char_jitter_y = word_jitter_y + (random.uniform(-1.0, 1.0) if not is_header else 0.0)
+                char_jitter_x = random.uniform(-0.4, 0.4) if not is_header else 0.0
+                char_rot = word_rot + (random.uniform(-1.2, 1.2) if not is_header else 0.0)
+
+                alpha_var = random.randint(-16, 16) if not is_header else 0
                 char_color = (
                     max(10, min(255, ink_color[0] + alpha_var)),
                     max(20, min(255, ink_color[1] + alpha_var)),
@@ -60,21 +91,24 @@ def generate_cmsp_assignment(
                 if abs(char_rot) > 0.1:
                     char_img = char_img.rotate(char_rot, resample=Image.BICUBIC, expand=True)
 
-                target_x = int(cur_x)
-                target_y = int(baseline_y - ch + char_jitter_y - bbox[1])
+                target_x = int(cur_x + char_jitter_x)
+                target_y = int(baseline_y + continuous_wander - ch + char_jitter_y - bbox[1])
 
                 canvas.paste(char_img, (target_x, target_y), char_img)
-                cur_x += cw - 1.5 + random.uniform(-0.4, 0.4)
+                cur_x += cw - 1.5 + (random.uniform(-0.4, 0.4) if not is_header else 0.0)
 
-            cur_x += font_size * random.uniform(0.38, 0.52)
+            cur_x += font_size * (random.uniform(0.36, 0.50) if not is_header else 0.42)
 
     # ---------------- PAGE 1 ----------------
-    page1 = Image.new("RGBA", (width, height), (252, 251, 248, 255))
+    page1 = Image.new("RGBA", (width, height), (255, 255, 255, 255))
 
-    # Top Header with Student Name: Hariprajwal
+    # Top Header with Student Name & Subject (Right-Aligned dynamically)
     y = margin_top
-    render_handwritten_line(page1, "Name  :   Hariprajwal", margin_left - 180, y, font=font_title, ink_color=(20, 50, 120))
-    render_handwritten_line(page1, "Subject  :   CMSP", 1750, y, font=font_title, ink_color=(20, 50, 120))
+    render_handwritten_line(page1, "Name  :   Hariprajwal", margin_left, y, font=font_title, ink_color=(20, 50, 120), is_header=True)
+    subj_str = "Subject  :   CMSP"
+    subj_w = font_title.getbbox(subj_str)[2] - font_title.getbbox(subj_str)[0]
+    subj_x = max(margin_left + 700, width - margin_right - subj_w)
+    render_handwritten_line(page1, subj_str, subj_x, y, font=font_title, ink_color=(20, 50, 120), is_header=True)
 
     y += int(line_spacing * 1.3)
     render_handwritten_line(page1, "Optimization   Problem   Set   -   1   .", margin_left + 150, y, font=font_title, ink_color=(18, 48, 115))
@@ -136,12 +170,15 @@ def generate_cmsp_assignment(
 
 
     # ---------------- PAGE 2 ----------------
-    page2 = Image.new("RGBA", (width, height), (252, 251, 248, 255))
+    page2 = Image.new("RGBA", (width, height), (255, 255, 255, 255))
     y = margin_top
 
-    # Header Page 2
-    render_handwritten_line(page2, "Name  :   Hariprajwal", margin_left - 180, y, font=font_title, ink_color=(20, 50, 120))
-    render_handwritten_line(page2, "CMSP  :  Set - 1 ( Contd . )", 1550, y, font=font_header, ink_color=(20, 50, 120))
+    # Header Page 2 (Dynamically aligned)
+    render_handwritten_line(page2, "Name  :   Hariprajwal", margin_left, y, font=font_title, ink_color=(20, 50, 120), is_header=True)
+    p2_str = "(  Page  2  )"
+    p2_w = font_header.getbbox(p2_str)[2] - font_header.getbbox(p2_str)[0]
+    p2_x = max(margin_left + 700, width - margin_right - p2_w)
+    render_handwritten_line(page2, p2_str, p2_x, y, font=font_header, ink_color=(20, 50, 120), is_header=True)
 
     y += int(line_spacing * 1.5)
     render_handwritten_line(page2, "x 3   =   investment   in   Scheme 3   ( lakhs )", margin_left + 60, y, font=font_main)
@@ -216,11 +253,11 @@ def generate_cmsp_assignment(
     render_handwritten_line(page2, "x 1  ,   x 2  ,   x 3   >=   0", margin_left + 140, y, font=font_main)
 
 
-    # Convert to RGB
-    rgb_page1 = Image.new("RGB", (width, height), (252, 251, 248))
+    # Convert to RGB (pure white)
+    rgb_page1 = Image.new("RGB", (width, height), (255, 255, 255))
     rgb_page1.paste(page1, (0, 0), page1)
 
-    rgb_page2 = Image.new("RGB", (width, height), (252, 251, 248))
+    rgb_page2 = Image.new("RGB", (width, height), (255, 255, 255))
     rgb_page2.paste(page2, (0, 0), page2)
 
     # Save multi-page PDF

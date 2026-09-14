@@ -29,6 +29,7 @@ import re
 import sys
 import time
 import json
+import math
 import base64
 import shutil
 import random
@@ -84,7 +85,14 @@ def load_config() -> dict:
         "ollama_text_model": "llama3.1:latest",
         "ai_mode": "solve_and_clean",  # 'solve_and_clean', 'clean_only', 'raw'
         "ollama_timeout": 180,
-        "paper_type": "plain_a4"
+        "paper_type": "plain_a4",
+        "paper_color_rgb": [255, 255, 255],
+        "human_misalignment": True,
+        "margin_left": 220,
+        "margin_right": 200,
+        "margin_top": 220,
+        "margin_bottom": 220,
+        "line_spacing": 92
     }
     if CONFIG_FILE.exists():
         try:
@@ -392,6 +400,13 @@ def format_for_handwriting(text: str) -> str:
         if l.startswith("```"):
             continue
 
+        # Strip LLM conversational preambles (e.g. 'Here is the corrected solution:')
+        if any(l.lower().startswith(p) for p in [
+            "here is the", "here are the", "sure, here", "certainly, here",
+            "certainly! here", "below is the", "here's the"
+        ]):
+            continue
+
         # Convert markdown table divider lines (|---|---|) to empty
         if re.match(r"^\|[\s\-:|]+\|$", l):
             continue
@@ -424,6 +439,48 @@ def format_for_handwriting(text: str) -> str:
 
     return "\n".join(cleaned_lines)
 
+def group_text_into_paragraphs(cleaned_lines: list) -> list:
+    """
+    Groups cleaned lines into cohesive paragraphs for A4 rendering.
+    Coalesces OCR sentence fragments into fluid paragraphs while preserving
+    headings, steps, equations, and lists.
+    """
+    paragraphs = []
+    current_para = []
+
+    for line in cleaned_lines:
+        l = line.strip()
+        if not l:
+            if current_para:
+                paragraphs.append(" ".join(current_para))
+                current_para = []
+            continue
+
+        # Detect headers, questions, steps, bullet points, or list elements
+        is_break = (
+            bool(re.match(r"^(Step\s*\d|Q\s*\d|\d+[\.\)\-]|[-•*#])", l, re.I)) or
+            l.endswith(":") or
+            any(k in l.lower() for k in ["problem statement", "objective function", "constraints", "returns :", "subject to:"]) or
+            (len(l) < 45 and (l.isupper() or l.startswith("#") or "Assignment" in l or "Problem" in l or "Scheme" in l))
+        )
+
+        if is_break:
+            if current_para:
+                paragraphs.append(" ".join(current_para))
+                current_para = []
+            current_para.append(l)
+            # If line is a header or ends with a colon, treat as standalone
+            if l.endswith(":") or l.startswith("#") or bool(re.match(r"^(Step\s*\d|Q\s*\d)", l, re.I)):
+                paragraphs.append(" ".join(current_para))
+                current_para = []
+        else:
+            current_para.append(l)
+
+    if current_para:
+        paragraphs.append(" ".join(current_para))
+
+    return paragraphs
+
 # ---------------------------------------------------------------------------
 # Universal A4 Cursive Handwriting Synthesis Engine
 # ---------------------------------------------------------------------------
@@ -446,30 +503,64 @@ class UniversalA4Renderer:
         self.height = 3508
         self.dpi = 300
 
+        # Paper background color (pure crisp white #FFFFFF by default)
+        paper_color = config.get("paper_color_rgb", [255, 255, 255])
+        self.paper_color = tuple(paper_color)
+        self.paper_color_rgba = (self.paper_color[0], self.paper_color[1], self.paper_color[2], 255)
+
         # Geometry & margins
-        self.margin_left = 300
-        self.margin_right = 260
-        self.margin_top = 260
-        self.margin_bottom = 260
-        self.line_spacing = 92
+        self.margin_left = config.get("margin_left", 220)
+        self.margin_right = config.get("margin_right", 240)
+        self.margin_top = config.get("margin_top", 220)
+        self.margin_bottom = config.get("margin_bottom", 220)
+        self.line_spacing = config.get("line_spacing", 92)
         self.max_width = self.width - self.margin_right
+        self.human_misalignment = config.get("human_misalignment", True)
 
         # Ink Color
         color = config.get("ink_color_rgb", [22, 58, 128])
         self.base_ink = tuple(color)
 
-    def _render_line_on_canvas(self, canvas: Image.Image, text: str, start_x: int, baseline_y: int, font=None):
+    def _render_line_on_canvas(self, canvas: Image.Image, text: str, start_x: int, baseline_y: int, font=None, is_header=False):
         font = font or self.font_main
         cur_x = start_x
         words = text.split(" ")
 
-        for word in words:
-            word_jitter_y = random.uniform(-2.5, 2.5)
-            for char in word:
-                char_jitter_y = word_jitter_y + random.uniform(-1.0, 1.0)
-                char_rot = random.uniform(-1.2, 1.2)
+        # Continuous sinusoidal & tilt baseline wander parameters for this line
+        if self.human_misalignment and not is_header:
+            line_slope = random.uniform(-0.0025, 0.0025)
+            wave_len1 = random.uniform(900, 1500)
+            wave_amp1 = random.uniform(2.0, 4.2)
+            wave_phase1 = random.uniform(0, 2 * math.pi)
 
-                alpha_var = random.randint(-15, 15)
+            wave_len2 = random.uniform(320, 580)
+            wave_amp2 = random.uniform(1.0, 2.2)
+            wave_phase2 = random.uniform(0, 2 * math.pi)
+        else:
+            line_slope = 0.0
+            wave_len1, wave_amp1, wave_phase1 = 1.0, 0.0, 0.0
+            wave_len2, wave_amp2, wave_phase2 = 1.0, 0.0, 0.0
+
+        for word in words:
+            if not word:
+                continue
+
+            word_jitter_y = random.uniform(-2.2, 2.2) if self.human_misalignment else 0.0
+            word_rot = random.uniform(-0.6, 0.6) if self.human_misalignment else 0.0
+
+            for char in word:
+                dx = cur_x - start_x
+                continuous_wander = (
+                    dx * line_slope +
+                    wave_amp1 * math.sin(2 * math.pi * cur_x / wave_len1 + wave_phase1) +
+                    wave_amp2 * math.sin(2 * math.pi * cur_x / wave_len2 + wave_phase2)
+                )
+
+                char_jitter_y = word_jitter_y + (random.uniform(-1.0, 1.0) if self.human_misalignment else 0.0)
+                char_jitter_x = random.uniform(-0.4, 0.4) if self.human_misalignment else 0.0
+                char_rot = word_rot + (random.uniform(-1.2, 1.2) if self.human_misalignment else 0.0)
+
+                alpha_var = random.randint(-16, 16) if self.human_misalignment else 0
                 char_color = (
                     max(10, min(255, self.base_ink[0] + alpha_var)),
                     max(20, min(255, self.base_ink[1] + alpha_var)),
@@ -489,82 +580,91 @@ class UniversalA4Renderer:
                 if abs(char_rot) > 0.1:
                     char_img = char_img.rotate(char_rot, resample=Image.BICUBIC, expand=True)
 
-                target_x = int(cur_x)
-                target_y = int(baseline_y - ch + char_jitter_y - bbox[1])
+                target_x = int(cur_x + char_jitter_x)
+                target_y = int(baseline_y + continuous_wander - ch + char_jitter_y - bbox[1])
 
                 canvas.paste(char_img, (target_x, target_y), char_img)
-                cur_x += cw - 1.5 + random.uniform(-0.4, 0.4)
+                cur_x += cw - 1.5 + (random.uniform(-0.4, 0.4) if self.human_misalignment else 0.0)
 
-            cur_x += self.font_size * random.uniform(0.38, 0.52)
+            space_scale = random.uniform(0.36, 0.50) if self.human_misalignment else 0.42
+            cur_x += self.font_size * space_scale
 
     def _estimate_text_width(self, text: str, font=None) -> int:
         font = font or self.font_main
-        bbox = font.getbbox(text)
-        return bbox[2] - bbox[0]
+        words = text.split(" ")
+        total_w = 0
+        for w_idx, word in enumerate(words):
+            if w_idx > 0:
+                total_w += int(self.font_size * 0.46)
+            for c in word:
+                bbox = font.getbbox(c)
+                cw = bbox[2] - bbox[0]
+                total_w += max(4, cw - 1)
+        return total_w
 
     def render_document(self, raw_text: str, document_title: str = "") -> list:
         random.seed(42)
         pages = []
         student_name = self.config.get("student_name", "Hariprajwal")
         clean_text = format_for_handwriting(raw_text)
+        paragraphs = group_text_into_paragraphs(clean_text.split("\n"))
 
         def create_a4_canvas():
-            # Warm ivory unruled plain sheet
-            return Image.new("RGBA", (self.width, self.height), (252, 251, 248, 255))
+            # Crisp pure white plain A4 sheet
+            return Image.new("RGBA", (self.width, self.height), self.paper_color_rgba)
 
         current_page = create_a4_canvas()
         page_index = 1
 
-        # Header on Page 1: Student Name & Subject
+        # Header on Page 1: Student Name & Subject (Dynamically right-aligned or wrapped)
         y = self.margin_top
+        name_str = f"Name  :   {student_name}"
+        name_w = self._estimate_text_width(name_str, font=self.font_title)
         self._render_line_on_canvas(
-            current_page, f"Name  :   {student_name}", self.margin_left - 160, y, font=self.font_title
+            current_page, name_str, self.margin_left, y, font=self.font_title, is_header=True
         )
-        subject_label = document_title or self.config.get("default_subject", "Assignment")
-        self._render_line_on_canvas(
-            current_page, f"Subject  :   {subject_label}", 1650, y, font=self.font_title
-        )
-        y += int(self.line_spacing * 1.6)
 
-        paragraphs = clean_text.split("\n")
+        subject_label = document_title or self.config.get("default_subject", "Assignment")
+        subj_str = f"Subject  :   {subject_label}"
+        subj_w = self._estimate_text_width(subj_str, font=self.font_title)
+        target_subj_x = self.width - self.margin_right - subj_w
+
+        if target_subj_x < self.margin_left + name_w + 140:
+            y += int(self.line_spacing * 0.95)
+            self._render_line_on_canvas(
+                current_page, subj_str, self.margin_left, y, font=self.font_title, is_header=True
+            )
+            y += int(self.line_spacing * 1.3)
+        else:
+            self._render_line_on_canvas(
+                current_page, subj_str, target_subj_x, y, font=self.font_title, is_header=True
+            )
+            y += int(self.line_spacing * 1.4)
 
         for para in paragraphs:
             para = para.strip()
             if not para:
-                y += int(self.line_spacing * 0.6)
-                if y > self.height - self.margin_bottom:
-                    pages.append(current_page)
-                    page_index += 1
-                    current_page = create_a4_canvas()
-                    y = self.margin_top
-                    self._render_line_on_canvas(
-                        current_page, f"Name  :   {student_name}", self.margin_left - 160, y, font=self.font_title
-                    )
-                    self._render_line_on_canvas(
-                        current_page, f"( Page  {page_index} )", 1850, y, font=self.font_header
-                    )
-                    y += int(self.line_spacing * 1.6)
                 continue
 
-            # Header / step detection
+            # Header / step / question detection
             is_heading = (
                 len(para) < 65 and (
                     para.startswith("Step") or para.startswith("Q") or
                     para.startswith("#") or "Problem" in para or "Formulation" in para or
-                    "Objective" in para or "Constraints" in para or "Answer" in para
+                    "Objective" in para or "Constraints" in para or "Answer" in para or
+                    para.endswith(":")
                 )
             )
             font = self.font_header if is_heading else self.font_main
             clean_para = para.lstrip("#").strip()
 
-            # Wrap paragraph words into A4 margins
             words = clean_para.split(" ")
             current_line = []
-            indent = self.margin_left + (40 if not is_heading else 0)
+            base_indent = self.margin_left + (35 if not is_heading else 0)
 
             for word in words:
                 test_line = " ".join(current_line + [word])
-                if indent + self._estimate_text_width(test_line, font) > self.max_width:
+                if base_indent + self._estimate_text_width(test_line, font) > self.max_width:
                     if current_line:
                         if y > self.height - self.margin_bottom:
                             pages.append(current_page)
@@ -572,16 +672,27 @@ class UniversalA4Renderer:
                             current_page = create_a4_canvas()
                             y = self.margin_top
                             self._render_line_on_canvas(
-                                current_page, f"Name  :   {student_name}", self.margin_left - 160, y, font=self.font_title
+                                current_page, f"Name  :   {student_name}", self.margin_left, y, font=self.font_title, is_header=True
                             )
+                            page_str = f"( Page  {page_index} )"
+                            p_w = self._estimate_text_width(page_str, font=self.font_header)
+                            p_x = max(self.margin_left + 700, self.width - self.margin_right - p_w)
                             self._render_line_on_canvas(
-                                current_page, f"( Page  {page_index} )", 1850, y, font=self.font_header
+                                current_page, page_str, p_x, y, font=self.font_header, is_header=True
                             )
-                            y += int(self.line_spacing * 1.6)
+                            y += int(self.line_spacing * 1.5)
+
+                        # Natural margin stagger for each line
+                        margin_stagger = random.gauss(0, 5.0) if self.human_misalignment else 0.0
+                        margin_stagger = max(-10.0, min(10.0, margin_stagger))
+                        line_x = int(base_indent + margin_stagger)
 
                         line_str = " ".join(current_line)
-                        self._render_line_on_canvas(current_page, line_str, indent, y, font)
-                        y += self.line_spacing
+                        self._render_line_on_canvas(current_page, line_str, line_x, y, font)
+
+                        # Organic line spacing variation
+                        gap_jitter = random.uniform(-4.0, 6.0) if self.human_misalignment else 0.0
+                        y += int(self.line_spacing + gap_jitter)
                         current_line = [word]
                     else:
                         current_line = [word]
@@ -595,23 +706,38 @@ class UniversalA4Renderer:
                     current_page = create_a4_canvas()
                     y = self.margin_top
                     self._render_line_on_canvas(
-                        current_page, f"Name  :   {student_name}", self.margin_left - 160, y, font=self.font_title
+                        current_page, f"Name  :   {student_name}", self.margin_left, y, font=self.font_title, is_header=True
                     )
+                    page_str = f"( Page  {page_index} )"
+                    p_w = self._estimate_text_width(page_str, font=self.font_header)
+                    p_x = max(self.margin_left + 700, self.width - self.margin_right - p_w)
                     self._render_line_on_canvas(
-                        current_page, f"( Page  {page_index} )", 1850, y, font=self.font_header
+                        current_page, page_str, p_x, y, font=self.font_header, is_header=True
                     )
-                    y += int(self.line_spacing * 1.6)
+                    y += int(self.line_spacing * 1.5)
+
+                margin_stagger = random.gauss(0, 5.0) if self.human_misalignment else 0.0
+                margin_stagger = max(-10.0, min(10.0, margin_stagger))
+                line_x = int(base_indent + margin_stagger)
 
                 line_str = " ".join(current_line)
-                self._render_line_on_canvas(current_page, line_str, indent, y, font)
-                y += self.line_spacing
+                self._render_line_on_canvas(current_page, line_str, line_x, y, font)
+
+                gap_jitter = random.uniform(-4.0, 6.0) if self.human_misalignment else 0.0
+                y += int(self.line_spacing + gap_jitter)
+
+            # Extra breathing space after headings or paragraphs
+            if is_heading:
+                y += int(self.line_spacing * 0.3)
+            else:
+                y += int(self.line_spacing * 0.4)
 
         pages.append(current_page)
 
-        # Convert RGBA to RGB
+        # Convert RGBA to RGB using pure white paper color
         rgb_pages = []
         for p in pages:
-            rgb = Image.new("RGB", (self.width, self.height), (252, 251, 248))
+            rgb = Image.new("RGB", (self.width, self.height), self.paper_color)
             rgb.paste(p, (0, 0), p)
             rgb_pages.append(rgb)
 
